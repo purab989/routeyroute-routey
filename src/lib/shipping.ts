@@ -39,7 +39,7 @@ export function factoryFor(productName: string): string | null {
   const hit = Object.keys(PRODUCT_FACTORY).find(
     (k) => key.includes(k) || k.includes(key),
   );
-  return hit ? PRODUCT_FACTORY[hit] : null;
+  return hit ? (PRODUCT_FACTORY[hit] ?? null) : null;
 }
 
 export type Shipment = {
@@ -86,7 +86,7 @@ export function parseDate(value: string): Date | null {
   if (!raw) return null;
   const slash = raw.match(/^(\d{1,4})[/-](\d{1,2})[/-](\d{1,4})$/);
   if (slash) {
-    let [, a, b, c] = slash;
+    const a = slash[1] ?? "", b = slash[2] ?? "", c = slash[3] ?? "";
     let y: number, m: number, d: number;
     if (a.length === 4) {
       y = +a; m = +b; d = +c;
@@ -178,9 +178,9 @@ export function aggregateRoutes(data: Shipment[], threshold: number): RouteStat[
     const variance = times.reduce((a, b) => a + (b - avg) ** 2, 0) / times.length;
     return {
       key,
-      factory: items[0].factory,
-      state: items[0].state,
-      region: items[0].region,
+      factory: items[0]!.factory,
+      state: items[0]!.state,
+      region: items[0]!.region,
       shipments: items.length,
       avgLeadTime: avg,
       stdDev: Math.sqrt(variance),
