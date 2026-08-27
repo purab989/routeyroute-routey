@@ -84,5 +84,25 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }
+
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@utility animate-bar {
+  transform-origin: left;
+  animation: bar-grow 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
