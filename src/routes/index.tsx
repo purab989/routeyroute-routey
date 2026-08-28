@@ -13,6 +13,12 @@ import {
   type Shipment,
 } from "@/lib/shipping";
 import { DrillDown, GeoMap, ShipModeComparison } from "@/components/modules";
+import {
+  BottleneckAnalysis,
+  DataQuality,
+  EfficiencyBenchmark,
+  ModeTradeoffPanel,
+} from "@/components/analysis";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -399,6 +405,20 @@ function Dashboard() {
               onSelectState={setDrillState}
             />
 
+            <EfficiencyBenchmark data={filtered} threshold={threshold} />
+
+            <BottleneckAnalysis
+              data={filtered}
+              threshold={threshold}
+              onSelectState={setDrillState}
+            />
+
+            <ModeTradeoffPanel data={filtered} threshold={threshold} />
+
+            <DataQuality parsed={parsed} fileName={fileName} />
+
+
+
 
 
             {showRegistry && (
@@ -471,8 +491,10 @@ function Dashboard() {
             <div className="rounded-lg border border-border bg-card px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
               Validation · {fileName} · skipped: {parsed.skipped.missing} missing dates ·{" "}
               {parsed.skipped.invalidDate} invalid dates · {parsed.skipped.negative} negative
-              lead times · {parsed.skipped.noFactory} unmapped products
+              lead times · {parsed.skipped.duplicate} duplicates · {parsed.skipped.noFactory}{" "}
+              unmapped products
             </div>
+
           </>
         )}
       </main>

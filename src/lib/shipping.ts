@@ -1,3 +1,5 @@
+import { STATE_CENTROIDS } from "@/lib/geo";
+
 export const FACTORY_COORDS: Record<string, { lat: number; lon: number }> = {
   "Lot's O' Nuts": { lat: 32.881893, lon: -111.768036 },
   "Wicked Choccy's": { lat: 32.076176, lon: -81.088371 },
@@ -61,9 +63,99 @@ export type Shipment = {
 
 export type ParseResult = {
   shipments: Shipment[];
-  skipped: { missing: number; invalidDate: number; negative: number; noFactory: number };
+  skipped: {
+    missing: number;
+    invalidDate: number;
+    negative: number;
+    noFactory: number;
+    duplicate: number;
+  };
+  cleaning: {
+    standardizedState: number;
+    standardizedRegion: number;
+    standardizedShipMode: number;
+    unknownState: number;
+  };
   totalRows: number;
 };
+
+/* ---------------- Geographic / categorical standardization ---------------- */
+
+const ABBR_TO_STATE: Record<string, string> = Object.fromEntries(
+  Object.entries(STATE_CENTROIDS).map(([name, v]) => [v.abbr, name]),
+);
+
+const titleCase = (v: string) =>
+  v
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+/** Trim, collapse whitespace, expand 2-letter codes, title-case state names. */
+export function standardizeState(raw: string): string {
+  const v = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!v) return "Unknown";
+  const upper = v.toUpperCase();
+  if (upper.length === 2 && ABBR_TO_STATE[upper]) return ABBR_TO_STATE[upper]!;
+  const t = titleCase(v);
+  const match = Object.keys(STATE_CENTROIDS).find(
+    (s) => s.toLowerCase() === t.toLowerCase(),
+  );
+  return match ?? t;
+}
+
+const REGION_ALIASES: Record<string, string> = {
+  w: "West",
+  west: "West",
+  e: "East",
+  east: "East",
+  c: "Central",
+  central: "Central",
+  s: "South",
+  south: "South",
+  n: "North",
+  north: "North",
+  ne: "Northeast",
+  northeast: "Northeast",
+  nw: "Northwest",
+  northwest: "Northwest",
+  se: "Southeast",
+  southeast: "Southeast",
+  sw: "Southwest",
+  southwest: "Southwest",
+  midwest: "Midwest",
+  "mid-west": "Midwest",
+};
+
+export function standardizeRegion(raw: string): string {
+  const v = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!v) return "Unknown";
+  return REGION_ALIASES[v.toLowerCase()] ?? titleCase(v);
+}
+
+const MODE_ALIASES: Record<string, string> = {
+  "standard class": "Standard Class",
+  standard: "Standard Class",
+  "second class": "Second Class",
+  "first class": "First Class",
+  "same day": "Same Day",
+  sameday: "Same Day",
+};
+
+export function standardizeShipMode(raw: string): string {
+  const v = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!v) return "Unknown";
+  return MODE_ALIASES[v.toLowerCase()] ?? titleCase(v);
+}
+
+/** Descriptive service class used in the cost/time tradeoff analysis. */
+export function shipModeClass(mode: string): "Expedited" | "Standard" {
+  return /same day|first class|second class|express|expedit/i.test(mode)
+    ? "Expedited"
+    : "Standard";
+}
+
 
 const pick = (row: Record<string, unknown>, names: string[]): string => {
   const keys = Object.keys(row);
@@ -103,8 +195,15 @@ export function parseDate(value: string): Date | null {
 }
 
 export function buildShipments(rows: Record<string, unknown>[]): ParseResult {
-  const skipped = { missing: 0, invalidDate: 0, negative: 0, noFactory: 0 };
+  const skipped = { missing: 0, invalidDate: 0, negative: 0, noFactory: 0, duplicate: 0 };
+  const cleaning = {
+    standardizedState: 0,
+    standardizedRegion: 0,
+    standardizedShipMode: 0,
+    unknownState: 0,
+  };
   const shipments: Shipment[] = [];
+  const seen = new Set<string>();
 
   for (const row of rows) {
     const orderRaw = pick(row, ["Order Date", "OrderDate"]);
@@ -130,15 +229,48 @@ export function buildShipments(rows: Record<string, unknown>[]): ParseResult {
       skipped.noFactory++;
       continue;
     }
+
+    const rawState = pick(row, ["State/Province", "State", "Province"]);
+    const rawRegion = pick(row, ["Region"]);
+    const rawMode = pick(row, ["Ship Mode", "ShipMode"]);
+    const state = standardizeState(rawState);
+    const region = standardizeRegion(rawRegion);
+    const shipMode = standardizeShipMode(rawMode);
+    if (rawState && state !== rawState) cleaning.standardizedState++;
+    if (rawRegion && region !== rawRegion) cleaning.standardizedRegion++;
+    if (rawMode && shipMode !== rawMode) cleaning.standardizedShipMode++;
+    if (state === "Unknown") cleaning.unknownState++;
+
+    const orderId = pick(row, ["Order ID", "OrderID"]) || `${shipments.length}`;
+    // Only exact duplicate records are removed (full row signature).
+    const dedupeKey = JSON.stringify([
+      orderId,
+      product,
+      toISO(orderDate),
+      toISO(shipDate),
+      state,
+      pick(row, ["City"]),
+      pick(row, ["Ship Mode", "ShipMode"]),
+      pick(row, ["Sales"]),
+      pick(row, ["Units"]),
+      pick(row, ["Cost"]),
+      pick(row, ["Gross Profit", "GrossProfit"]),
+    ]);
+    if (seen.has(dedupeKey)) {
+      skipped.duplicate++;
+      continue;
+    }
+    seen.add(dedupeKey);
+
     shipments.push({
-      orderId: pick(row, ["Order ID", "OrderID"]) || `${shipments.length}`,
+      orderId,
       orderDate,
       shipDate,
       leadTime,
-      shipMode: pick(row, ["Ship Mode", "ShipMode"]) || "Unknown",
-      state: pick(row, ["State/Province", "State", "Province"]) || "Unknown",
-      region: pick(row, ["Region"]) || "Unknown",
-      city: pick(row, ["City"]),
+      shipMode,
+      state,
+      region,
+      city: pick(row, ["City"]).replace(/\s+/g, " ").trim(),
       factory,
       product,
       sales: num(pick(row, ["Sales"])),
@@ -148,8 +280,9 @@ export function buildShipments(rows: Record<string, unknown>[]): ParseResult {
     });
   }
 
-  return { shipments, skipped, totalRows: rows.length };
+  return { shipments, skipped, cleaning, totalRows: rows.length };
 }
+
 
 export type RouteStat = {
   key: string;
@@ -248,4 +381,139 @@ export function groupStats(
     s.score = max === min ? 100 : Math.round((1 - (s.avgLeadTime - min) / (max - min)) * 100);
   }
   return stats.sort((a, b) => a.avgLeadTime - b.avgLeadTime);
+}
+
+/* ---------------- Route definition by granularity ---------------- */
+
+export type RouteLevel = "state" | "region";
+
+/** Factory -> Customer State (default) or Factory -> Customer Region routes. */
+export function aggregateRoutesBy(
+  data: Shipment[],
+  threshold: number,
+  level: RouteLevel,
+): RouteStat[] {
+  if (level === "state") return aggregateRoutes(data, threshold);
+
+  const groups = new Map<string, Shipment[]>();
+  for (const s of data) {
+    const key = `${s.factory}→${s.region}`;
+    const arr = groups.get(key);
+    if (arr) arr.push(s);
+    else groups.set(key, [s]);
+  }
+  const stats: RouteStat[] = [...groups.entries()].map(([key, items]) => {
+    const times = items.map((i) => i.leadTime);
+    const avg = times.reduce((a, b) => a + b, 0) / times.length;
+    const variance = times.reduce((a, b) => a + (b - avg) ** 2, 0) / times.length;
+    return {
+      key,
+      factory: items[0]!.factory,
+      state: items[0]!.region,
+      region: items[0]!.region,
+      shipments: items.length,
+      avgLeadTime: avg,
+      stdDev: Math.sqrt(variance),
+      delayRate: (times.filter((t) => t > threshold).length / times.length) * 100,
+      score: 0,
+    };
+  });
+  const avgs = stats.map((s) => s.avgLeadTime);
+  const min = Math.min(...avgs);
+  const max = Math.max(...avgs);
+  for (const s of stats) {
+    s.score = max === min ? 100 : Math.round((1 - (s.avgLeadTime - min) / (max - min)) * 100);
+  }
+  return stats.sort((a, b) => a.avgLeadTime - b.avgLeadTime);
+}
+
+/* ---------------- Geographic bottleneck detection ---------------- */
+
+export type Bottleneck = GroupStat & {
+  volumeShare: number;
+  congestionIndex: number;
+  flags: string[];
+};
+
+/**
+ * Congestion index = volume share x relative slowness. Flags a geography as
+ * congestion-prone when it carries above-median volume AND above-average lead time.
+ */
+export function detectBottlenecks(
+  data: Shipment[],
+  threshold: number,
+  keyOf: (s: Shipment) => string,
+): Bottleneck[] {
+  const stats = groupStats(data, threshold, keyOf);
+  if (stats.length === 0) return [];
+  const total = data.length || 1;
+  const networkAvg = data.reduce((a, s) => a + s.leadTime, 0) / total;
+  const volumes = stats.map((s) => s.shipments).sort((a, b) => a - b);
+  const medianVolume = volumes[Math.floor(volumes.length / 2)] ?? 0;
+  const maxDelay = Math.max(...stats.map((s) => s.delayRate), 1);
+
+  return stats
+    .map((s) => {
+      const volumeShare = (s.shipments / total) * 100;
+      const slowness = networkAvg > 0 ? s.avgLeadTime / networkAvg : 1;
+      const flags: string[] = [];
+      if (s.avgLeadTime > networkAvg) flags.push("SLOW");
+      if (s.shipments > medianVolume) flags.push("HIGH VOLUME");
+      if (s.delayRate >= maxDelay * 0.9) flags.push("DELAY-PRONE");
+      if (s.stdDev > (networkAvg || 1) * 0.25) flags.push("VOLATILE");
+      return {
+        ...s,
+        volumeShare,
+        congestionIndex: Math.round(volumeShare * slowness * 10) / 10,
+        flags,
+      };
+    })
+    .sort((a, b) => b.congestionIndex - a.congestionIndex);
+}
+
+/* ---------------- Ship mode cost / time tradeoff ---------------- */
+
+export type ModeTradeoff = GroupStat & {
+  serviceClass: "Expedited" | "Standard";
+  costPerUnit: number;
+  avgSales: number;
+  marginPct: number;
+  daysSavedVsStandard: number;
+  costPremiumPct: number;
+};
+
+export function shipModeTradeoff(data: Shipment[], threshold: number): ModeTradeoff[] {
+  const base = groupStats(data, threshold, (s) => s.shipMode);
+  const byMode = new Map<string, Shipment[]>();
+  for (const s of data) {
+    const arr = byMode.get(s.shipMode);
+    if (arr) arr.push(s);
+    else byMode.set(s.shipMode, [s]);
+  }
+  const std = data.filter((s) => shipModeClass(s.shipMode) === "Standard");
+  const stdAvgLead = std.length
+    ? std.reduce((a, s) => a + s.leadTime, 0) / std.length
+    : 0;
+  const stdUnits = std.reduce((a, s) => a + s.units, 0);
+  const stdCostPerUnit = stdUnits ? std.reduce((a, s) => a + s.cost, 0) / stdUnits : 0;
+
+  return base.map((g) => {
+    const items = byMode.get(g.key) ?? [];
+    const units = items.reduce((a, s) => a + s.units, 0);
+    const cost = items.reduce((a, s) => a + s.cost, 0);
+    const sales = items.reduce((a, s) => a + s.sales, 0);
+    const profit = items.reduce((a, s) => a + s.grossProfit, 0);
+    const costPerUnit = units ? cost / units : 0;
+    return {
+      ...g,
+      serviceClass: shipModeClass(g.key),
+      costPerUnit,
+      avgSales: items.length ? sales / items.length : 0,
+      marginPct: sales ? (profit / sales) * 100 : 0,
+      daysSavedVsStandard: stdAvgLead - g.avgLeadTime,
+      costPremiumPct: stdCostPerUnit
+        ? ((costPerUnit - stdCostPerUnit) / stdCostPerUnit) * 100
+        : 0,
+    };
+  });
 }
