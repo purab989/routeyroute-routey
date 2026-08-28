@@ -193,8 +193,15 @@ export function parseDate(value: string): Date | null {
 }
 
 export function buildShipments(rows: Record<string, unknown>[]): ParseResult {
-  const skipped = { missing: 0, invalidDate: 0, negative: 0, noFactory: 0 };
+  const skipped = { missing: 0, invalidDate: 0, negative: 0, noFactory: 0, duplicate: 0 };
+  const cleaning = {
+    standardizedState: 0,
+    standardizedRegion: 0,
+    standardizedShipMode: 0,
+    unknownState: 0,
+  };
   const shipments: Shipment[] = [];
+  const seen = new Set<string>();
 
   for (const row of rows) {
     const orderRaw = pick(row, ["Order Date", "OrderDate"]);
@@ -220,15 +227,35 @@ export function buildShipments(rows: Record<string, unknown>[]): ParseResult {
       skipped.noFactory++;
       continue;
     }
+
+    const rawState = pick(row, ["State/Province", "State", "Province"]);
+    const rawRegion = pick(row, ["Region"]);
+    const rawMode = pick(row, ["Ship Mode", "ShipMode"]);
+    const state = standardizeState(rawState);
+    const region = standardizeRegion(rawRegion);
+    const shipMode = standardizeShipMode(rawMode);
+    if (rawState && state !== rawState) cleaning.standardizedState++;
+    if (rawRegion && region !== rawRegion) cleaning.standardizedRegion++;
+    if (rawMode && shipMode !== rawMode) cleaning.standardizedShipMode++;
+    if (state === "Unknown") cleaning.unknownState++;
+
+    const orderId = pick(row, ["Order ID", "OrderID"]) || `${shipments.length}`;
+    const dedupeKey = `${orderId}|${product}|${toISO(orderDate)}|${toISO(shipDate)}|${state}`;
+    if (seen.has(dedupeKey)) {
+      skipped.duplicate++;
+      continue;
+    }
+    seen.add(dedupeKey);
+
     shipments.push({
-      orderId: pick(row, ["Order ID", "OrderID"]) || `${shipments.length}`,
+      orderId,
       orderDate,
       shipDate,
       leadTime,
-      shipMode: pick(row, ["Ship Mode", "ShipMode"]) || "Unknown",
-      state: pick(row, ["State/Province", "State", "Province"]) || "Unknown",
-      region: pick(row, ["Region"]) || "Unknown",
-      city: pick(row, ["City"]),
+      shipMode,
+      state,
+      region,
+      city: pick(row, ["City"]).replace(/\s+/g, " ").trim(),
       factory,
       product,
       sales: num(pick(row, ["Sales"])),
@@ -238,8 +265,9 @@ export function buildShipments(rows: Record<string, unknown>[]): ParseResult {
     });
   }
 
-  return { shipments, skipped, totalRows: rows.length };
+  return { shipments, skipped, cleaning, totalRows: rows.length };
 }
+
 
 export type RouteStat = {
   key: string;
