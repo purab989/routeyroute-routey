@@ -35,9 +35,9 @@ function Dashboard() {
 
   const all: Shipment[] = parsed?.shipments ?? [];
 
-  const handleFile = (file: File) => {
+  const parseCsv = (input: File | string, name: string) => {
     setError(null);
-    Papa.parse<Record<string, unknown>>(file, {
+    Papa.parse<Record<string, unknown>>(input, {
       header: true,
       skipEmptyLines: true,
       complete: (res) => {
