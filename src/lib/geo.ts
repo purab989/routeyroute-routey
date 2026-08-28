@@ -86,9 +86,10 @@ const FIPS_TO_NAME: Record<string, string> = {
 
 const pathGen = geoPath();
 const stateFeatures = (
-  feature(usTopology as never, (usTopology as { objects: { states: never } }).objects.states) as unknown as {
-    features: { id?: string | number; geometry: never }[];
-  }
+  feature(
+    usTopology as never,
+    (usTopology as unknown as { objects: { states: unknown } }).objects.states as never,
+  ) as unknown as { features: { id?: string | number; geometry: never }[] }
 ).features;
 
 /** Real US state boundary SVG paths, keyed by state name (Albers USA projected). */
