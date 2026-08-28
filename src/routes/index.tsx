@@ -491,8 +491,10 @@ function Dashboard() {
             <div className="rounded-lg border border-border bg-card px-6 py-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
               Validation · {fileName} · skipped: {parsed.skipped.missing} missing dates ·{" "}
               {parsed.skipped.invalidDate} invalid dates · {parsed.skipped.negative} negative
-              lead times · {parsed.skipped.noFactory} unmapped products
+              lead times · {parsed.skipped.duplicate} duplicates · {parsed.skipped.noFactory}{" "}
+              unmapped products
             </div>
+
           </>
         )}
       </main>
