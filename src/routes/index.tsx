@@ -405,6 +405,20 @@ function Dashboard() {
               onSelectState={setDrillState}
             />
 
+            <EfficiencyBenchmark data={filtered} threshold={threshold} />
+
+            <BottleneckAnalysis
+              data={filtered}
+              threshold={threshold}
+              onSelectState={setDrillState}
+            />
+
+            <ModeTradeoffPanel data={filtered} threshold={threshold} />
+
+            <DataQuality parsed={parsed} fileName={fileName} />
+
+
+
 
 
             {showRegistry && (
