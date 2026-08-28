@@ -1,3 +1,7 @@
+import { geoAlbersUsa, geoPath } from "d3-geo";
+import { feature } from "topojson-client";
+import usTopology from "@/assets/us-states.json";
+
 export const STATE_CENTROIDS: Record<string, { lat: number; lon: number; abbr: string }> = {
   Alabama: { lat: 32.8, lon: -86.79, abbr: "AL" },
   Alaska: { lat: 61.37, lon: -152.4, abbr: "AK" },
@@ -52,16 +56,49 @@ export const STATE_CENTROIDS: Record<string, { lat: number; lon: number; abbr: s
   Wyoming: { lat: 42.76, lon: -107.3, abbr: "WY" },
 };
 
-export const MAP_W = 900;
-export const MAP_H = 520;
+export const MAP_W = 975;
+export const MAP_H = 610;
 
-/** Simple equirectangular-ish projection tuned to the contiguous US. */
+const albers = geoAlbersUsa().scale(1300).translate([MAP_W / 2, MAP_H / 2]);
+
+/** Albers USA projection matching the pre-projected us-atlas state geometry. */
 export function project(lat: number, lon: number): { x: number; y: number } {
-  const lon0 = -125,
-    lon1 = -66,
-    lat0 = 50,
-    lat1 = 24;
-  const x = ((lon - lon0) / (lon1 - lon0)) * MAP_W;
-  const y = ((lat0 - lat) / (lat0 - lat1)) * MAP_H;
-  return { x, y };
+  const p = albers([lon, lat]);
+  return p ? { x: p[0], y: p[1] } : { x: -100, y: -100 };
 }
+
+/** FIPS id -> state name (must match STATE_CENTROIDS keys). */
+const FIPS_TO_NAME: Record<string, string> = {
+  "01": "Alabama", "02": "Alaska", "04": "Arizona", "05": "Arkansas",
+  "06": "California", "08": "Colorado", "09": "Connecticut", "10": "Delaware",
+  "11": "District of Columbia", "12": "Florida", "13": "Georgia", "15": "Hawaii",
+  "16": "Idaho", "17": "Illinois", "18": "Indiana", "19": "Iowa",
+  "20": "Kansas", "21": "Kentucky", "22": "Louisiana", "23": "Maine",
+  "24": "Maryland", "25": "Massachusetts", "26": "Michigan", "27": "Minnesota",
+  "28": "Mississippi", "29": "Missouri", "30": "Montana", "31": "Nebraska",
+  "32": "Nevada", "33": "New Hampshire", "34": "New Jersey", "35": "New Mexico",
+  "36": "New York", "37": "North Carolina", "38": "North Dakota", "39": "Ohio",
+  "40": "Oklahoma", "41": "Oregon", "42": "Pennsylvania", "44": "Rhode Island",
+  "45": "South Carolina", "46": "South Dakota", "47": "Tennessee", "48": "Texas",
+  "49": "Utah", "50": "Vermont", "51": "Virginia", "53": "Washington",
+  "54": "West Virginia", "55": "Wisconsin", "56": "Wyoming",
+};
+
+const pathGen = geoPath();
+const stateFeatures = (
+  feature(
+    usTopology as never,
+    (usTopology as unknown as { objects: { states: unknown } }).objects.states as never,
+  ) as unknown as { features: { id?: string | number; geometry: never }[] }
+).features;
+
+/** Real US state boundary SVG paths, keyed by state name (Albers USA projected). */
+export const STATE_PATHS: Record<string, string> = Object.fromEntries(
+  stateFeatures
+    .map((f) => {
+      const name = FIPS_TO_NAME[String(f.id).padStart(2, "0")];
+      const d = pathGen(f.geometry as never);
+      return name && d ? ([name, d] as const) : null;
+    })
+    .filter((e): e is readonly [string, string] => e !== null),
+);
