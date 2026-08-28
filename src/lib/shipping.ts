@@ -61,9 +61,99 @@ export type Shipment = {
 
 export type ParseResult = {
   shipments: Shipment[];
-  skipped: { missing: number; invalidDate: number; negative: number; noFactory: number };
+  skipped: {
+    missing: number;
+    invalidDate: number;
+    negative: number;
+    noFactory: number;
+    duplicate: number;
+  };
+  cleaning: {
+    standardizedState: number;
+    standardizedRegion: number;
+    standardizedShipMode: number;
+    unknownState: number;
+  };
   totalRows: number;
 };
+
+/* ---------------- Geographic / categorical standardization ---------------- */
+
+const ABBR_TO_STATE: Record<string, string> = Object.fromEntries(
+  Object.entries(STATE_CENTROIDS).map(([name, v]) => [v.abbr, name]),
+);
+
+const titleCase = (v: string) =>
+  v
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+/** Trim, collapse whitespace, expand 2-letter codes, title-case state names. */
+export function standardizeState(raw: string): string {
+  const v = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!v) return "Unknown";
+  const upper = v.toUpperCase();
+  if (upper.length === 2 && ABBR_TO_STATE[upper]) return ABBR_TO_STATE[upper]!;
+  const t = titleCase(v);
+  const match = Object.keys(STATE_CENTROIDS).find(
+    (s) => s.toLowerCase() === t.toLowerCase(),
+  );
+  return match ?? t;
+}
+
+const REGION_ALIASES: Record<string, string> = {
+  w: "West",
+  west: "West",
+  e: "East",
+  east: "East",
+  c: "Central",
+  central: "Central",
+  s: "South",
+  south: "South",
+  n: "North",
+  north: "North",
+  ne: "Northeast",
+  northeast: "Northeast",
+  nw: "Northwest",
+  northwest: "Northwest",
+  se: "Southeast",
+  southeast: "Southeast",
+  sw: "Southwest",
+  southwest: "Southwest",
+  midwest: "Midwest",
+  "mid-west": "Midwest",
+};
+
+export function standardizeRegion(raw: string): string {
+  const v = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!v) return "Unknown";
+  return REGION_ALIASES[v.toLowerCase()] ?? titleCase(v);
+}
+
+const MODE_ALIASES: Record<string, string> = {
+  "standard class": "Standard Class",
+  standard: "Standard Class",
+  "second class": "Second Class",
+  "first class": "First Class",
+  "same day": "Same Day",
+  sameday: "Same Day",
+};
+
+export function standardizeShipMode(raw: string): string {
+  const v = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!v) return "Unknown";
+  return MODE_ALIASES[v.toLowerCase()] ?? titleCase(v);
+}
+
+/** Descriptive service class used in the cost/time tradeoff analysis. */
+export function shipModeClass(mode: string): "Expedited" | "Standard" {
+  return /same day|first class|second class|express|expedit/i.test(mode)
+    ? "Expedited"
+    : "Standard";
+}
+
 
 const pick = (row: Record<string, unknown>, names: string[]): string => {
   const keys = Object.keys(row);
