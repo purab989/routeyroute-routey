@@ -1,3 +1,7 @@
+import { geoAlbersUsa, geoPath } from "d3-geo";
+import { feature } from "topojson-client";
+import usTopology from "@/assets/us-states.json";
+
 export const STATE_CENTROIDS: Record<string, { lat: number; lon: number; abbr: string }> = {
   Alabama: { lat: 32.8, lon: -86.79, abbr: "AL" },
   Alaska: { lat: 61.37, lon: -152.4, abbr: "AK" },
