@@ -32,6 +32,7 @@ function Dashboard() {
   const [to, setTo] = useState("");
   const [board, setBoard] = useState<"fastest" | "slowest">("fastest");
   const [showRegistry, setShowRegistry] = useState(false);
+  const [drillState, setDrillState] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const all: Shipment[] = parsed?.shipments ?? [];
