@@ -80,17 +80,26 @@ export function GeoMap({
     >
       <div className="relative">
         <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} className="w-full">
-          <defs>
-            <pattern id="grid" width="45" height="45" patternUnits="userSpaceOnUse">
+          {/* real state shapes, heat-colored by efficiency */}
+          {Object.entries(STATE_PATHS).map(([name, d]) => {
+            const st = byKey.get(name);
+            const t = st ? tier(st.score) : null;
+            const on = active === name;
+            return (
               <path
-                d="M 45 0 L 0 0 0 45"
-                fill="none"
-                stroke="var(--color-border)"
-                strokeWidth="0.5"
+                key={name}
+                d={d}
+                className="cursor-pointer transition-opacity"
+                fill={t ? t.fill : "var(--color-surface-2)"}
+                fillOpacity={st ? (on ? 0.95 : 0.55) : 0.25}
+                stroke="var(--color-background)"
+                strokeWidth={on ? 1.6 : 0.7}
+                onMouseEnter={() => st && setHover(name)}
+                onMouseLeave={() => setHover(null)}
+                onClick={() => st && onSelectState(selectedState === name ? null : name)}
               />
-            </pattern>
-          </defs>
-          <rect width={MAP_W} height={MAP_H} fill="url(#grid)" opacity="0.5" />
+            );
+          })}
 
           {/* corridors from factories to states */}
           {states.map((st) => {
@@ -110,7 +119,8 @@ export function GeoMap({
                 y2={dest.y}
                 stroke="var(--color-primary)"
                 strokeWidth={active === st.key ? 1.4 : 0.4}
-                opacity={active === st.key ? 0.8 : 0.12}
+                opacity={active === st.key ? 0.8 : 0.1}
+                className="pointer-events-none"
               />
             );
           })}
@@ -119,7 +129,7 @@ export function GeoMap({
           {Object.entries(FACTORY_COORDS).map(([name, c]) => {
             const p = project(c.lat, c.lon);
             return (
-              <g key={name}>
+              <g key={name} className="pointer-events-none">
                 <rect
                   x={p.x - 5}
                   y={p.y - 5}
@@ -131,7 +141,7 @@ export function GeoMap({
                 />
                 <text
                   x={p.x}
-                  y={p.y - 11}
+                  y={p.y - 9}
                   textAnchor="middle"
                   className="fill-primary font-mono"
                   fontSize="10"
@@ -142,37 +152,31 @@ export function GeoMap({
             );
           })}
 
-          {/* state heat bubbles */}
+          {/* volume bubbles on active shipments */}
           {states.map((st) => {
             const c = STATE_CENTROIDS[st.key];
             if (!c) return null;
             const p = project(c.lat, c.lon);
-            const r = 5 + Math.sqrt(st.shipments / maxVol) * 20;
-            const t = tier(st.score);
+            const r = 3 + Math.sqrt(st.shipments / maxVol) * 9;
             const on = active === st.key;
             return (
-              <g
-                key={st.key}
-                className="cursor-pointer"
-                onMouseEnter={() => setHover(st.key)}
-                onMouseLeave={() => setHover(null)}
-                onClick={() => onSelectState(selectedState === st.key ? null : st.key)}
-              >
+              <g key={`b-${st.key}`} className="pointer-events-none">
                 <circle
                   cx={p.x}
                   cy={p.y}
                   r={r}
-                  fill={t.fill}
-                  opacity={on ? 0.55 : 0.28}
-                  stroke={t.fill}
-                  strokeWidth={on ? 2 : 1}
+                  fill="none"
+                  stroke="var(--color-foreground)"
+                  strokeWidth={on ? 1.4 : 0.7}
+                  opacity={on ? 0.9 : 0.45}
                 />
                 <text
                   x={p.x}
-                  y={p.y + 3}
+                  y={p.y + r + 9}
                   textAnchor="middle"
                   fontSize="9"
-                  className="pointer-events-none fill-current font-mono text-foreground"
+                  className="fill-current font-mono text-foreground"
+                  opacity={on ? 1 : 0.7}
                 >
                   {c.abbr}
                 </text>
