@@ -22,8 +22,8 @@ export const Route = createFileRoute("/deck")({
     ],
   }),
   validateSearch: (s: Record<string, unknown>) => ({
-    slide: Math.max(1, Number(s.slide) || 1),
-    print: s.print === true || s.print === "true" || s.print === "",
+    slide: Math.max(1, Number(s["slide"]) || 1),
+    print: s["print"] === true || s["print"] === "true" || s["print"] === "",
   }),
   component: DeckPage,
 });
@@ -82,9 +82,11 @@ function DeckPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [go, index, print]);
 
+  const current = slides[index - 1]!;
+
   useEffect(() => {
-    document.title = `${index}/${slides.length} — ${slides[index - 1].title} · Nassau Briefing`;
-  }, [index]);
+    document.title = `${index}/${slides.length} — ${current.title} · Nassau Briefing`;
+  }, [index, current]);
 
   if (print) {
     return (
@@ -108,7 +110,7 @@ function DeckPage() {
             Route Efficiency Briefing
           </span>
           <span className="font-mono text-xs text-muted-foreground">
-            {slides[index - 1].title}
+            {current.title}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -152,7 +154,7 @@ function DeckPage() {
 
         <main className="flex min-w-0 flex-1 flex-col p-6">
           <ScaledSlide className="flex-1 rounded-md border border-border">
-            {slides[index - 1].render()}
+            {current.render()}
           </ScaledSlide>
           <div className="mt-4 flex items-center justify-center gap-4">
             <button
