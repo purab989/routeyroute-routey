@@ -1,3 +1,5 @@
+import { STATE_CENTROIDS } from "@/lib/geo";
+
 export const FACTORY_COORDS: Record<string, { lat: number; lon: number }> = {
   "Lot's O' Nuts": { lat: 32.881893, lon: -111.768036 },
   "Wicked Choccy's": { lat: 32.076176, lon: -81.088371 },
