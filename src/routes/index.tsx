@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import nassauAsset from "@/assets/nassau.csv.asset.json";
@@ -186,6 +186,13 @@ function Dashboard() {
               e.target.value = "";
             }}
           />
+          <Link
+            to="/deck"
+            search={{ slide: 1, print: false }}
+            className="rounded-sm border border-border px-5 py-2.5 text-sm font-bold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            VIEW BRIEFING
+          </Link>
           <button
             onClick={() => inputRef.current?.click()}
             className="cursor-pointer rounded-sm bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground transition-colors hover:opacity-90"
