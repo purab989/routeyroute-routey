@@ -382,6 +382,25 @@ function Dashboard() {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <GeoMap
+                data={filtered}
+                threshold={threshold}
+                selectedState={drillState}
+                onSelectState={setDrillState}
+              />
+              <ShipModeComparison data={filtered} threshold={threshold} />
+            </div>
+
+            <DrillDown
+              data={filtered}
+              threshold={threshold}
+              selectedState={drillState}
+              onSelectState={setDrillState}
+            />
+
+
+
             {showRegistry && (
               <div className="overflow-hidden rounded-lg border border-border bg-card">
                 <div className="flex items-center justify-between border-b border-border px-6 py-4">
