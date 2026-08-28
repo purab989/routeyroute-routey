@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
+import nassauAsset from "@/assets/nassau.csv.asset.json";
 import {
   aggregateRoutes,
   buildShipments,
@@ -34,9 +35,9 @@ function Dashboard() {
 
   const all: Shipment[] = parsed?.shipments ?? [];
 
-  const handleFile = (file: File) => {
+  const parseCsv = (input: File | string, name: string) => {
     setError(null);
-    Papa.parse<Record<string, unknown>>(file, {
+    Papa.parse<Record<string, unknown>>(input, {
       header: true,
       skipEmptyLines: true,
       complete: (res) => {
@@ -51,12 +52,33 @@ function Dashboard() {
         const dates = result.shipments.map((s) => s.orderDate.getTime());
         setFrom(toISO(new Date(Math.min(...dates))));
         setTo(toISO(new Date(Math.max(...dates))));
-        setFileName(file.name);
+        setFileName(name);
         setParsed(result);
       },
       error: () => setError("Could not read that file."),
     });
   };
+
+  const handleFile = (file: File) => parseCsv(file, file.name);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(nassauAsset.url)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.text();
+      })
+      .then((text) => {
+        if (!cancelled) parseCsv(text, "Nassau_Candy_Distributor.csv");
+      })
+      .catch(() => {
+        if (!cancelled) setError("Could not load the bundled dataset — upload a CSV instead.");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const regions = useMemo(
     () => [...new Set(all.map((s) => s.region))].sort(),
