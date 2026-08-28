@@ -369,3 +369,138 @@ export function groupStats(
   }
   return stats.sort((a, b) => a.avgLeadTime - b.avgLeadTime);
 }
+
+/* ---------------- Route definition by granularity ---------------- */
+
+export type RouteLevel = "state" | "region";
+
+/** Factory -> Customer State (default) or Factory -> Customer Region routes. */
+export function aggregateRoutesBy(
+  data: Shipment[],
+  threshold: number,
+  level: RouteLevel,
+): RouteStat[] {
+  if (level === "state") return aggregateRoutes(data, threshold);
+
+  const groups = new Map<string, Shipment[]>();
+  for (const s of data) {
+    const key = `${s.factory}→${s.region}`;
+    const arr = groups.get(key);
+    if (arr) arr.push(s);
+    else groups.set(key, [s]);
+  }
+  const stats: RouteStat[] = [...groups.entries()].map(([key, items]) => {
+    const times = items.map((i) => i.leadTime);
+    const avg = times.reduce((a, b) => a + b, 0) / times.length;
+    const variance = times.reduce((a, b) => a + (b - avg) ** 2, 0) / times.length;
+    return {
+      key,
+      factory: items[0]!.factory,
+      state: items[0]!.region,
+      region: items[0]!.region,
+      shipments: items.length,
+      avgLeadTime: avg,
+      stdDev: Math.sqrt(variance),
+      delayRate: (times.filter((t) => t > threshold).length / times.length) * 100,
+      score: 0,
+    };
+  });
+  const avgs = stats.map((s) => s.avgLeadTime);
+  const min = Math.min(...avgs);
+  const max = Math.max(...avgs);
+  for (const s of stats) {
+    s.score = max === min ? 100 : Math.round((1 - (s.avgLeadTime - min) / (max - min)) * 100);
+  }
+  return stats.sort((a, b) => a.avgLeadTime - b.avgLeadTime);
+}
+
+/* ---------------- Geographic bottleneck detection ---------------- */
+
+export type Bottleneck = GroupStat & {
+  volumeShare: number;
+  congestionIndex: number;
+  flags: string[];
+};
+
+/**
+ * Congestion index = volume share x relative slowness. Flags a geography as
+ * congestion-prone when it carries above-median volume AND above-average lead time.
+ */
+export function detectBottlenecks(
+  data: Shipment[],
+  threshold: number,
+  keyOf: (s: Shipment) => string,
+): Bottleneck[] {
+  const stats = groupStats(data, threshold, keyOf);
+  if (stats.length === 0) return [];
+  const total = data.length || 1;
+  const networkAvg = data.reduce((a, s) => a + s.leadTime, 0) / total;
+  const volumes = stats.map((s) => s.shipments).sort((a, b) => a - b);
+  const medianVolume = volumes[Math.floor(volumes.length / 2)] ?? 0;
+  const maxDelay = Math.max(...stats.map((s) => s.delayRate), 1);
+
+  return stats
+    .map((s) => {
+      const volumeShare = (s.shipments / total) * 100;
+      const slowness = networkAvg > 0 ? s.avgLeadTime / networkAvg : 1;
+      const flags: string[] = [];
+      if (s.avgLeadTime > networkAvg) flags.push("SLOW");
+      if (s.shipments > medianVolume) flags.push("HIGH VOLUME");
+      if (s.delayRate >= maxDelay * 0.9) flags.push("DELAY-PRONE");
+      if (s.stdDev > (networkAvg || 1) * 0.25) flags.push("VOLATILE");
+      return {
+        ...s,
+        volumeShare,
+        congestionIndex: Math.round(volumeShare * slowness * 10) / 10,
+        flags,
+      };
+    })
+    .sort((a, b) => b.congestionIndex - a.congestionIndex);
+}
+
+/* ---------------- Ship mode cost / time tradeoff ---------------- */
+
+export type ModeTradeoff = GroupStat & {
+  serviceClass: "Expedited" | "Standard";
+  costPerUnit: number;
+  avgSales: number;
+  marginPct: number;
+  daysSavedVsStandard: number;
+  costPremiumPct: number;
+};
+
+export function shipModeTradeoff(data: Shipment[], threshold: number): ModeTradeoff[] {
+  const base = groupStats(data, threshold, (s) => s.shipMode);
+  const byMode = new Map<string, Shipment[]>();
+  for (const s of data) {
+    const arr = byMode.get(s.shipMode);
+    if (arr) arr.push(s);
+    else byMode.set(s.shipMode, [s]);
+  }
+  const std = data.filter((s) => shipModeClass(s.shipMode) === "Standard");
+  const stdAvgLead = std.length
+    ? std.reduce((a, s) => a + s.leadTime, 0) / std.length
+    : 0;
+  const stdUnits = std.reduce((a, s) => a + s.units, 0);
+  const stdCostPerUnit = stdUnits ? std.reduce((a, s) => a + s.cost, 0) / stdUnits : 0;
+
+  return base.map((g) => {
+    const items = byMode.get(g.key) ?? [];
+    const units = items.reduce((a, s) => a + s.units, 0);
+    const cost = items.reduce((a, s) => a + s.cost, 0);
+    const sales = items.reduce((a, s) => a + s.sales, 0);
+    const profit = items.reduce((a, s) => a + s.grossProfit, 0);
+    const costPerUnit = units ? cost / units : 0;
+    return {
+      ...g,
+      serviceClass: shipModeClass(g.key),
+      costPerUnit,
+      avgSales: items.length ? sales / items.length : 0,
+      marginPct: sales ? (profit / sales) * 100 : 0,
+      daysSavedVsStandard: stdAvgLead - g.avgLeadTime,
+      costPremiumPct: stdCostPerUnit
+        ? ((costPerUnit - stdCostPerUnit) / stdCostPerUnit) * 100
+        : 0,
+    };
+  });
+}
