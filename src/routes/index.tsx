@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
+import nassauAsset from "@/assets/nassau.csv.asset.json";
 import {
   aggregateRoutes,
   buildShipments,
