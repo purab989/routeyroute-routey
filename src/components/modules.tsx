@@ -7,7 +7,7 @@ import {
   type GroupStat,
   type Shipment,
 } from "@/lib/shipping";
-import { MAP_H, MAP_W, project, STATE_CENTROIDS } from "@/lib/geo";
+import { MAP_H, MAP_W, project, STATE_CENTROIDS, STATE_PATHS } from "@/lib/geo";
 
 function Panel({
   title,
