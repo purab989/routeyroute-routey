@@ -379,8 +379,8 @@ export function DrillDown({
 
           <div className="mt-5 max-h-[360px] overflow-auto border-t border-border pt-4">
             <div className="space-y-3">
-              {rows.map((r) => (
-                <div key={`${r.orderId}-${r.product}-${r.orderDate.getTime()}`}>
+              {rows.map((r, i) => (
+                <div key={`${r.orderId}-${r.product}-${i}`}>
                   <div className="flex justify-between font-mono text-[10px] text-muted-foreground">
                     <span>
                       {r.orderId} · {r.product}
