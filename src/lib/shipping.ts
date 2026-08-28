@@ -242,7 +242,20 @@ export function buildShipments(rows: Record<string, unknown>[]): ParseResult {
     if (state === "Unknown") cleaning.unknownState++;
 
     const orderId = pick(row, ["Order ID", "OrderID"]) || `${shipments.length}`;
-    const dedupeKey = `${orderId}|${product}|${toISO(orderDate)}|${toISO(shipDate)}|${state}`;
+    // Only exact duplicate records are removed (full row signature).
+    const dedupeKey = JSON.stringify([
+      orderId,
+      product,
+      toISO(orderDate),
+      toISO(shipDate),
+      state,
+      pick(row, ["City"]),
+      pick(row, ["Ship Mode", "ShipMode"]),
+      pick(row, ["Sales"]),
+      pick(row, ["Units"]),
+      pick(row, ["Cost"]),
+      pick(row, ["Gross Profit", "GrossProfit"]),
+    ]);
     if (seen.has(dedupeKey)) {
       skipped.duplicate++;
       continue;
