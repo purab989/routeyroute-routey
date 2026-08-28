@@ -153,9 +153,11 @@ function DeckPage() {
         </aside>
 
         <main className="flex min-w-0 flex-1 flex-col p-6">
-          <ScaledSlide className="flex-1 rounded-md border border-border">
-            {current.render()}
-          </ScaledSlide>
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <ScaledSlide className="aspect-video max-h-full w-full max-w-full rounded-md border border-border">
+              {current.render()}
+            </ScaledSlide>
+          </div>
           <div className="mt-4 flex items-center justify-center gap-4">
             <button
               onClick={() => go(index - 1)}
