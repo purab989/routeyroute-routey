@@ -28,7 +28,15 @@ export const Route = createFileRoute("/deck")({
   component: DeckPage,
 });
 
-function ScaledSlide({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function ScaledSlide({
+  children,
+  className = "",
+  style,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.4);
 
@@ -46,7 +54,7 @@ function ScaledSlide({ children, className = "" }: { children: React.ReactNode; 
   }, []);
 
   return (
-    <div ref={box} className={`relative overflow-hidden ${className}`}>
+    <div ref={box} style={style} className={`relative overflow-hidden ${className}`}>
       <div
         className="slide-content absolute left-1/2 top-1/2 -ml-[960px] -mt-[540px] origin-center"
         style={{ transform: `scale(${scale})` }}
@@ -154,7 +162,10 @@ function DeckPage() {
 
         <main className="flex min-w-0 flex-1 flex-col p-6">
           <div className="flex min-h-0 flex-1 items-center justify-center">
-            <ScaledSlide className="aspect-video max-h-full w-full max-w-full rounded-md border border-border">
+            <ScaledSlide
+              style={{ aspectRatio: "16 / 9" }}
+              className="max-h-full w-full max-w-full rounded-md border border-border"
+            >
               {current.render()}
             </ScaledSlide>
           </div>
