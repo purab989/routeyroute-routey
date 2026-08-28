@@ -12,6 +12,7 @@ import {
   type RouteStat,
   type Shipment,
 } from "@/lib/shipping";
+import { DrillDown, GeoMap, ShipModeComparison } from "@/components/modules";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
