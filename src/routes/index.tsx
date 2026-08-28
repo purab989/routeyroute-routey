@@ -13,6 +13,12 @@ import {
   type Shipment,
 } from "@/lib/shipping";
 import { DrillDown, GeoMap, ShipModeComparison } from "@/components/modules";
+import {
+  BottleneckAnalysis,
+  DataQuality,
+  EfficiencyBenchmark,
+  ModeTradeoffPanel,
+} from "@/components/analysis";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
