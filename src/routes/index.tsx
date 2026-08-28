@@ -12,6 +12,7 @@ import {
   type RouteStat,
   type Shipment,
 } from "@/lib/shipping";
+import { DrillDown, GeoMap, ShipModeComparison } from "@/components/modules";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -31,6 +32,7 @@ function Dashboard() {
   const [to, setTo] = useState("");
   const [board, setBoard] = useState<"fastest" | "slowest">("fastest");
   const [showRegistry, setShowRegistry] = useState(false);
+  const [drillState, setDrillState] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const all: Shipment[] = parsed?.shipments ?? [];
@@ -379,6 +381,25 @@ function Dashboard() {
                 </div>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <GeoMap
+                data={filtered}
+                threshold={threshold}
+                selectedState={drillState}
+                onSelectState={setDrillState}
+              />
+              <ShipModeComparison data={filtered} threshold={threshold} />
+            </div>
+
+            <DrillDown
+              data={filtered}
+              threshold={threshold}
+              selectedState={drillState}
+              onSelectState={setDrillState}
+            />
+
+
 
             {showRegistry && (
               <div className="overflow-hidden rounded-lg border border-border bg-card">

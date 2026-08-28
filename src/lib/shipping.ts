@@ -202,3 +202,50 @@ export const fmt = (n: number, d = 1) =>
   n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 
 export const toISO = (d: Date) => d.toISOString().slice(0, 10);
+
+export type GroupStat = {
+  key: string;
+  shipments: number;
+  avgLeadTime: number;
+  stdDev: number;
+  delayRate: number;
+  medianLeadTime: number;
+  p90LeadTime: number;
+  score: number;
+};
+
+export function groupStats(
+  data: Shipment[],
+  threshold: number,
+  keyOf: (s: Shipment) => string,
+): GroupStat[] {
+  const groups = new Map<string, number[]>();
+  for (const s of data) {
+    const k = keyOf(s);
+    const arr = groups.get(k);
+    if (arr) arr.push(s.leadTime);
+    else groups.set(k, [s.leadTime]);
+  }
+  const stats: GroupStat[] = [...groups.entries()].map(([key, times]) => {
+    const sorted = [...times].sort((a, b) => a - b);
+    const avg = times.reduce((a, b) => a + b, 0) / times.length;
+    const variance = times.reduce((a, b) => a + (b - avg) ** 2, 0) / times.length;
+    return {
+      key,
+      shipments: times.length,
+      avgLeadTime: avg,
+      stdDev: Math.sqrt(variance),
+      delayRate: (times.filter((t) => t > threshold).length / times.length) * 100,
+      medianLeadTime: sorted[Math.floor(sorted.length / 2)] ?? 0,
+      p90LeadTime: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))] ?? 0,
+      score: 0,
+    };
+  });
+  const avgs = stats.map((s) => s.avgLeadTime);
+  const min = Math.min(...avgs);
+  const max = Math.max(...avgs);
+  for (const s of stats) {
+    s.score = max === min ? 100 : Math.round((1 - (s.avgLeadTime - min) / (max - min)) * 100);
+  }
+  return stats.sort((a, b) => a.avgLeadTime - b.avgLeadTime);
+}
